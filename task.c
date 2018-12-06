@@ -3,7 +3,7 @@
 void task1(void)   // may terminated
 {
 	unsigned int a = ~0;
-
+	printf("in 1 \n");
 	while (a != 0) {
 		a -= 1;
 	}
