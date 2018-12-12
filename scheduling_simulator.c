@@ -23,6 +23,7 @@ int first_in_flag = 0;
 int HQ_check_flag = 0;
 int LQ_check_flag = 0;
 int time_flag_for_set = 0;
+int run_flag_remove = 0;
 int mode_flag = 0;
 //count suspend
 int pid_time_flag[40];
@@ -46,12 +47,13 @@ int tmp;
 int running_flag = 0; 
 int all_empty_flag = 0;
 int main_or_task_flag = 0;
+int shell_remove_flag = 0;
 void hw_suspend(int msec_10)
 {
 
 	//waiting is OK?
 	//swap?
-	printf("HELLO in sus %d \n",running_flag);
+	//printf("HELLO in sus %d \n",running_flag);
 	struct node* tmp_Q_in_sus;
 	tmp_Q_in_sus = find_pid_in_Q(Q_HEAD,running_flag);
 	tmp_Q_in_sus->status = TASK_WAITING;
@@ -107,18 +109,30 @@ int hw_wakeup_taskname(char *task_name)
 		wake_pid = find_name(tmp_wake,task_name);
 		//pid found
 		if(wake_pid != -1){
-			count_wake++;
+			
 			tmp_wake_find = find_pid_in_Q(Q_HEAD,wake_pid);
-			tmp_wake_find->status = TASK_READY;
+			if(tmp_wake_find->status == 2){
+				tmp_wake_find->status = TASK_READY;
+				count_wake++;
+			}
+			
 			if(strcmp(tmp_wake_find->prior,"H") ==0){
 				tmp_wake_p = find_pid_in_Q(HQ_HEAD,wake_pid);
-				tmp_wake_p->status = TASK_READY;
-				pid_time_flag[wake_pid] = 0;
+				if(tmp_wake_p->status == 2){
+					tmp_wake_p->status = TASK_READY;
+					pid_time_flag[wake_pid] = 0;
+
+				}
+				
 			}
 			else{
 				tmp_wake_p = find_pid_in_Q(LQ_HEAD,wake_pid);
-				tmp_wake_p->status = TASK_READY;
-				pid_time_flag[wake_pid] = 0;
+				if(tmp_wake_p->status == 2){
+					tmp_wake_p->status = TASK_READY;
+					pid_time_flag[wake_pid] = 0;
+
+				}
+				
 			}
 		}
 		if( i != Q_number - 1){
@@ -148,7 +162,7 @@ int hw_task_create(char *task_name)
 	//modify: change prior
 	//modify: check and change all to task1 or task3
 	//printf("HI create\n");
-	printf("in create\n");
+	//printf("in create\n");
     char task_tmp_name[1000];
 	char prior_tmp[1000];
 	char time_quantum[1000];
@@ -305,12 +319,24 @@ int HisEmpty(void)
 // QTAIL->next = tmp_for_HQ;
 // 
 struct node* find_parent(struct node* parent){
-	if(parent->next->pid == running_flag){
-		return parent;
+	if(mode_flag == 1){
+		if(parent->next->pid ==  shell_remove_flag){
+			return parent;
+		}
+		else{
+			find_parent(parent->next);
+		}
+
 	}
 	else{
-		find_parent(parent->next);
+		if(parent->next->pid == running_flag){
+			return parent;
+		}
+		else{
+			find_parent(parent->next);
+		}
 	}
+	
 	//if()
 	//check if me==TAIL
 		//no prior???
@@ -324,6 +350,90 @@ struct node* find_parent(struct node* parent){
 	//if me == TAIL
 	// before->next = NULL
 	// HQTAIL = before
+}
+void remove_shell(int remove_pid){
+
+	struct node* remove_Q;
+	remove_Q = find_pid_in_Q(Q_HEAD,remove_pid);
+	struct node* remove_F;
+	struct node* remove_FP;
+	struct node* remove_P;
+	//printf("CHECK remove \n");
+	if(remove_Q->status == 0){
+		run_flag_remove = 1;
+	}
+	if(strcmp(remove_Q->prior,"H")== 0){
+		//printf("CHECK remove H \n");
+		remove_F = find_pid_in_Q(HQ_HEAD,remove_pid);
+		if(remove_F->pid == HQ_HEAD->pid){
+			HPop();
+			//Pop();
+		}
+		else if(remove_F->pid == HQ_TAIL->pid){
+
+			remove_FP = find_parent(HQ_HEAD);
+			remove_FP->next = NULL;
+			HQ_TAIL = remove_FP;
+			free(remove_F);
+			HQ_number--;
+		}
+		else{
+			
+			remove_FP = find_parent(HQ_HEAD);
+			remove_FP->next = remove_F->next;
+			free(remove_F);
+			HQ_number--;
+		}
+	}
+	else{
+		//printf("CHECK remove L\n");
+		remove_F = find_pid_in_Q(LQ_HEAD,remove_pid);
+		//printf("CHECK remove L 2\n");
+		if(remove_F->pid == LQ_HEAD->pid){
+			LPop();
+		}
+		else if(remove_F->pid == LQ_TAIL->pid){
+			//printf("CHECK remove L 3\n");
+			remove_FP = find_parent(LQ_HEAD);
+			remove_FP->next = NULL;
+			LQ_TAIL = remove_FP;
+			free(remove_F);
+			LQ_number--;
+		}
+		else{
+			//printf("CHECK remove L 4\n");
+			remove_FP = find_parent(LQ_HEAD);
+			//printf("check pid %d \n",remove_FP->pid);
+			remove_FP->next = remove_F->next;
+			free(remove_F);
+			LQ_number--;
+		}
+	}
+	//printf("check \n ");
+	if(remove_Q->pid == Q_HEAD->pid){
+		//HPop();
+		//printf("check %d 1 \n ",remove_Q->pid);
+		Pop();
+		//printf("YO 1 \n");
+	}
+	else if(remove_Q->pid == Q_TAIL->pid){
+		//printf("check %d 2 \n ",remove_Q->pid);
+		remove_P = find_parent(Q_HEAD);
+		remove_P->next = NULL;
+		Q_TAIL = remove_P;
+		//free(remove_Q);
+		Q_number--;
+		//printf("YO 2 \n");
+	}
+	else{
+		//printf("check %d 3 \n ",remove_Q->pid);
+		remove_P = find_parent(Q_HEAD);
+		//printf("YO 3 P\n");
+		remove_P->next = remove_Q->next;
+		//free(remove_P);
+		Q_number--;
+		//printf("YO 3 \n");
+	}
 }
 void remove_from_Q(int pri){
 	if(pri == 0){
@@ -351,8 +461,7 @@ void remove_from_Q(int pri){
 
 		}
 	}
-	else{
-		
+	else{	
 		struct node* remove_me;
 		remove_me = find_pid_in_Q(HQ_HEAD,running_flag);
 		//modify??
@@ -373,10 +482,8 @@ void remove_from_Q(int pri){
 			remove_H->next = remove_me->next;
 			free(remove_me);
 			HQ_number--;
-
 		}
 	}
-
 }
 //Low priority
 void LPush(char* name,char* time,char* priority)
@@ -457,11 +564,16 @@ void Push(char* name,char* time_pq,char* priority)
 //modify
 int Pop(void)
 {
+	//printf("in pop\n");
     struct node* ptr = Q_HEAD;
+	//printf("in pop 1\n");
     int result = ptr->pid;
     Q_HEAD = ptr->next;
-    free(ptr);
+	//printf("in pop 2\n");
+    //free(ptr);
+	//printf("in pop 22\n");
     Q_number--;
+	//printf("in pop 3\n");
     return result;
 }
 int isEmpty(void)
@@ -485,7 +597,7 @@ void printQ(struct node* HEAD){
 }
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void alarm_signal(int signal_number){
-	printf("STOP!!\n");
+	//printf("STOP!!\n");
 	if(all_empty_flag == 1){
 		all_empty_flag = 0;
 		//printf("Stop all empty\n");
@@ -519,7 +631,7 @@ void alarm_signal(int signal_number){
 			//printf("Back!! %d\n\n",running_flag);
 			struct node* tmp_parent_H;
 			tmp_parent_H = find_parent(HQ_HEAD);
-			printf("bye bye!! %d\n\n",running_flag);
+			//printf("bye bye!! %d\n\n",running_flag);
 			tmp_parent_H->next = tmp_alarm_H->next;
 			tmp_alarm_H->next = NULL;
 			HQ_TAIL->next = tmp_alarm_H;
@@ -577,7 +689,7 @@ void shell(){
 	t.it_value.tv_sec = 0;
 	t.it_value.tv_usec = 0;
 	setitimer(ITIMER_REAL, &t, NULL);
-
+	run_flag_remove = 0;
 	while(1){
 
 		char buff[50];
@@ -591,7 +703,7 @@ void shell(){
 		memset(buff,0,sizeof(buff));
 		
 		fgets(buff,sizeof(buff),stdin);
-		puts(buff);
+		//puts(buff);
 		
 		int count = 0;
 		int prior_flag = 0;
@@ -649,18 +761,66 @@ void shell(){
 		}
 		else if(buff[0] == 'p'){
 			tmp = 0;
-			printQ(Q_HEAD);
+			if(Q_number == 0){
+
+
+			}
+			else{
+				printQ(Q_HEAD);
+			}
+			
 		}
 		else if(buff[0] == 'r'){
 			//modify remove
 
+			char* delim_for_n = "\n";
+			char* pch_for_n = NULL;
+			pch_for_n = strtok(buff,delim_for_n);
+
+			char* delim = " ";
+			char* pch = NULL;
+			pch = strtok(pch_for_n,delim);	
+			pch = strtok(NULL,delim);
+			int pid_for_r = 0;
+			pid_for_r = atoi(pch);
+			//printf("test pch %d \n",pid_for_r);
+			shell_remove_flag = pid_for_r;
+			remove_shell(pid_for_r);
+
 		}
 		else if(buff[0] == 's'){
+			if(run_flag_remove == 1){
+				//printf("HELLo \n");
+				mode_flag = 0;
+				setcontext(&uc[0]);
+			}
+			else{
+				mode_flag = 0;
+				//main_or_task_flag
+				if(first_in_flag == 0){
+					//printf("HELLo f \n");
+					return;
+				}
+				else{
+					//printf("HELLo else \n");
+					if(main_or_task_flag == 0){
+						swapcontext(&uc[40],&uc[0]);
+					}
+					else{
+						//printf("HERE\n");
+						settime();
+						swapcontext(&uc[40],&uc[running_flag]);
+					}
+				}
+				
+				//return;
+
+			}
 			//settime();
-			mode_flag = 0;
+			
 			//modify
 			//return or set???
-			return;
+			//return;
 		}
 	}
 }
@@ -672,7 +832,8 @@ void signal_handler(int signal_number){
 	else{
 		///modify
 		//use context
-		printf("\n Ctrl + Z :) \n");
+		//printf("\n Ctrl + Z :) \n");
+		printf("\n");
 		t.it_interval.tv_sec = 0;
 		t.it_interval.tv_usec = 0;
 		t.it_value.tv_sec = 0;
@@ -711,7 +872,6 @@ struct node* check_status(struct node* ptr){
 			else{
 				check_status(ptr->next);
 			}
-			
 		}
 		else{
 			if(ptr->pid == LQ_TAIL->pid){
@@ -722,7 +882,6 @@ struct node* check_status(struct node* ptr){
 			else{
 				check_status(ptr->next);
 			}
-			
 		}
 		//check_status(ptr->next);
 	}
@@ -772,16 +931,16 @@ void settime(){
 			t.it_interval.tv_sec = 0;
 			t.it_interval.tv_usec = 0;
 			t.it_value.tv_sec = 0;
-			t.it_value.tv_usec = 10;
-			printf("DONE set time short\n");
+			t.it_value.tv_usec = 10000;
+			//printf("DONE set time short\n");
 			setitimer(ITIMER_REAL,&t,NULL);
 		}
 		else{
 			t.it_interval.tv_sec = 0;
 			t.it_interval.tv_usec = 0;
 			t.it_value.tv_sec = 0;
-			t.it_value.tv_usec = 20;
-			printf("DONE set time long\n");
+			t.it_value.tv_usec = 20000;
+			//printf("DONE set time long\n");
 			setitimer(ITIMER_REAL,&t,NULL);
 		}
 
@@ -834,12 +993,14 @@ int main()
 			uc[i].uc_stack.ss_size = sizeof(stack);
 		}
 		makecontext(&uc[40], shell, 0);
-		first_in_flag = 1;
+		//first_in_flag = 1;
 
 	}
 	shell();
+	first_in_flag = 1;
 	while(1){
-		printf("HI\n");
+		run_flag_remove = 0;
+		//printf("HI\n");
 		//printf("count my Q\n");
 		
 		if(HQ_number == 0 && LQ_number == 0){
@@ -851,12 +1012,12 @@ int main()
 		}
 		//if high Q is not empty
 		else if(!HisEmpty()){
-			printf("HI H\n");
+			//printf("HI H\n");
 			//fix
 			struct node* tmp_for_HQ;
 			tmp_for_HQ = check_status(HQ_HEAD);
 			if(HQ_check_flag == 1){
-				printf("check HQ\n");
+				//printf("check HQ\n");
 				//nothing to do in HQ
 			}
 			else{
@@ -889,7 +1050,7 @@ int main()
 					}
 					
 					if(strcmp(tmp_for_HQ->task,"task1") == 0){
-						printf("Hello 1 \n");
+						//printf("Hello 1 \n");
 						settime();
 						if(uc_flag[tmp_for_Q->pid] == 0){
 							makecontext(&uc[tmp_for_Q->pid], task1, 0);
@@ -904,50 +1065,64 @@ int main()
 						closetime();
 						//task1();
 						//if status != waiting or ready then terminated
-						if(tmp_for_Q->status == 0){
-							//modify!!! use remove?
-							//printf("status : %d",tmp_for_Q->status);		
-							tmp_for_Q->status = TASK_TERMINATED;
-							tmp_for_HQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
-							remove_from_Q(1);
+						if(run_flag_remove == 1){
+
+
 						}
+						else{
+							if(tmp_for_Q->status == 0){
+								//modify!!! use remove?
+								//printf("status : %d",tmp_for_Q->status);		
+								tmp_for_Q->status = TASK_TERMINATED;
+								tmp_for_HQ->status = TASK_TERMINATED;
+								//printf("yoyo %d\n",running_flag);
+								remove_from_Q(1);
+							}
+						}
+						
 						//free(tmp_for_HQ);
 					}
 					else if(strcmp(tmp_for_HQ->task,"task2") == 0){
-						printf("Hello 2 \n");
+						//printf("Hello 2 \n");
 						//settime();
 						
 						if(uc_flag[tmp_for_Q->pid] == 0){
-							printf("NEW\n");
+							//printf("NEW\n");
 							makecontext(&uc[tmp_for_Q->pid], task2, 0);
 							uc_flag[tmp_for_Q->pid] = 1;
 						}
 						//printf("out set time\n");
 						//printf("GO 2\n");
 						main_or_task_flag = 1;
-						printf("GO 2 flag = %d \n",running_flag);
-						printf("GO 2 swap = %d \n",tmp_for_Q->pid);
+						//printf("GO 2 flag = %d \n",running_flag);
+						//printf("GO 2 swap = %d \n",tmp_for_Q->pid);
 						settime();
-						printf("out set time\n");
+						//printf("out set time\n");
 						swapcontext(&uc[0],&uc[running_flag]);
 						closetime();
-						printf("OUT 2\n");
+						//printf("OUT 2\n");
 						main_or_task_flag = 0;
 						//printf("out 2\n");
 						
+						if(run_flag_remove == 1){
 
-						if(tmp_for_Q->status == 0){
+
+						}
+						else{
+							if(tmp_for_Q->status == 0){
 							//printf("status : %d",tmp_for_Q->status);		
 							tmp_for_Q->status = TASK_TERMINATED;
 							tmp_for_HQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
+							//printf("yoyo %d\n",running_flag);
 							remove_from_Q(1);
 						}
+
+						}
+						
 						
 					}
 					else if(strcmp(tmp_for_HQ->task,"task3") == 0){
-						printf("Hello 3 \n");
+						//printf("Hello 3 \n");
 						settime();
 						if(uc_flag[tmp_for_Q->pid] == 0){
 							makecontext(&uc[tmp_for_Q->pid], task3, 0);
@@ -960,19 +1135,26 @@ int main()
 						main_or_task_flag = 0;
 						//printf("out 3\n");
 						closetime();
+						if(run_flag_remove == 1){
 
-						if(tmp_for_Q->status == 0){
+
+						}
+						else{
+							if(tmp_for_Q->status == 0){
 							//printf("status : %d",tmp_for_Q->status);		
 							tmp_for_Q->status = TASK_TERMINATED;
 							tmp_for_HQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
+							//printf("yoyo %d\n",running_flag);
 							remove_from_Q(1);
 						}
+
+						}
+						
 					}
 					//modify//////////////////////////////////////////////////
 					else if(strcmp(tmp_for_HQ->task,"task4") == 0){
 						//task4();
-						printf("Hello 4 \n");
+						//printf("Hello 4 \n");
 						settime();
 						if(uc_flag[tmp_for_Q->pid] == 0){
 							makecontext(&uc[tmp_for_Q->pid], task4, 0);
@@ -985,17 +1167,24 @@ int main()
 						main_or_task_flag = 0;
 						//printf("out 4\n");
 						closetime();
+						if(run_flag_remove == 1){
 
-						if(tmp_for_Q->status == 0){
+
+						}
+						else{
+							if(tmp_for_Q->status == 0){
 							//printf("status : %d",tmp_for_Q->status);		
 							tmp_for_Q->status = TASK_TERMINATED;
 							tmp_for_HQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
+							//printf("yoyo %d\n",running_flag);
 							remove_from_Q(1);
 						}	
+
+						}
+						
 					}
 					else if(strcmp(tmp_for_HQ->task,"task5") == 0){
-						printf("Hello 5 \n");
+						//printf("Hello 5 \n");
 						settime();
 						if(uc_flag[tmp_for_Q->pid] == 0){
 							makecontext(&uc[tmp_for_Q->pid], task5, 0);
@@ -1008,17 +1197,24 @@ int main()
 						main_or_task_flag = 0;
 						//printf("out 5\n");
 						closetime();
+						if(run_flag_remove == 1){
 
-						if(tmp_for_Q->status == 0){
+
+						}
+						else{
+							if(tmp_for_Q->status == 0){
 							//printf("status : %d",tmp_for_Q->status);		
 							tmp_for_Q->status = TASK_TERMINATED;
 							tmp_for_HQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
+							//printf("yoyo %d\n",running_flag);
 							remove_from_Q(1);
-						}	
+						}
+
+						}
+							
 					}
 					else if(strcmp(tmp_for_HQ->task,"task6") == 0){
-						printf("Hello 6 \n");
+						//printf("Hello 6 \n");
 						settime();
 						if(uc_flag[tmp_for_Q->pid] == 0){
 							makecontext(&uc[tmp_for_Q->pid], task6, 0);
@@ -1031,14 +1227,21 @@ int main()
 						main_or_task_flag = 0;
 						//printf("out 6\n");
 						closetime();
+						if(run_flag_remove == 1){
 
-						if(tmp_for_Q->status == 0){
+
+						}
+						else{
+							if(tmp_for_Q->status == 0){
 							//printf("status : %d",tmp_for_Q->status);		
 							tmp_for_Q->status = TASK_TERMINATED;
 							tmp_for_HQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
+							//printf("yoyo %d\n",running_flag);
 							remove_from_Q(1);
 						}	
+
+						}
+						
 					}	
 					else{
 						printf("NO!\n");
@@ -1058,7 +1261,7 @@ int main()
 			if(!LisEmpty()){
 				//if LQ has no task ready
 				//set HQ_check_flag = 1
-				printf("HI L\n");
+				//printf("HI L\n");
 				//fix
 				struct node* tmp_for_LQ;
 				tmp_for_LQ = check_status(LQ_HEAD);
@@ -1096,9 +1299,9 @@ int main()
 						count_for_sus();
 
 					}
-					printf("MMM\n");
+					//printf("MMM\n");
 					if(strcmp(tmp_for_LQ->task,"task1") == 0){
-						printf("Hello 1 \n");
+						//printf("Hello 1 \n");
 						settime();
 						if(uc_flag[tmp_for_Q->pid] == 0){
 							makecontext(&uc[tmp_for_Q->pid], task1, 0);
@@ -1113,18 +1316,26 @@ int main()
 						closetime();
 						//task1();
 						//if status != waiting or ready then terminated
-						if(tmp_for_Q->status == 0){
+						if(run_flag_remove == 1){
+
+
+						}
+						else{
+							if(tmp_for_Q->status == 0){
 							//modify!!! use remove?
 							//printf("status : %d",tmp_for_Q->status);		
 							tmp_for_Q->status = TASK_TERMINATED;
 							tmp_for_LQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
+							//printf("yoyo %d\n",running_flag);
 							remove_from_Q(0);
 						}
+
+						}
+						
 						//free(tmp_for_HQ);
 					}
 					else if(strcmp(tmp_for_LQ->task,"task2") == 0){
-						printf("Hello 2 \n");
+						//printf("Hello 2 \n");
 						settime();
 						if(uc_flag[tmp_for_Q->pid] == 0){
 							makecontext(&uc[tmp_for_Q->pid], task2, 0);
@@ -1137,18 +1348,24 @@ int main()
 						main_or_task_flag = 0;
 						//printf("out 2\n");
 						closetime();
+						if(run_flag_remove == 1){
 
-						if(tmp_for_Q->status == 0){
-							//printf("status : %d",tmp_for_Q->status);		
-							tmp_for_Q->status = TASK_TERMINATED;
-							tmp_for_LQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
-							remove_from_Q(0);
+
 						}
+						else{
+							if(tmp_for_Q->status == 0){
+							//printf("status : %d",tmp_for_Q->status);		
+								tmp_for_Q->status = TASK_TERMINATED;
+								tmp_for_LQ->status = TASK_TERMINATED;
+								//printf("yoyo %d\n",running_flag);
+								remove_from_Q(0);
+							}
+						}
+						
 						
 					}
 					else if(strcmp(tmp_for_LQ->task,"task3") == 0){
-						printf("Hello 3 \n");
+						//printf("Hello 3 \n");
 						settime();
 						if(uc_flag[tmp_for_Q->pid] == 0){
 							makecontext(&uc[tmp_for_Q->pid], task3, 0);
@@ -1162,18 +1379,26 @@ int main()
 						//printf("out 3\n");
 						closetime();
 
-						if(tmp_for_Q->status == 0){
+						if(run_flag_remove == 1){
+
+
+						}
+						else{
+							if(tmp_for_Q->status == 0){
 							//printf("status : %d",tmp_for_Q->status);		
 							tmp_for_Q->status = TASK_TERMINATED;
 							tmp_for_LQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
+							//printf("yoyo %d\n",running_flag);
 							remove_from_Q(0);
 						}
+
+						}
+						
 					}
 					//modify//////////////////////////////////////////////////
 					else if(strcmp(tmp_for_LQ->task,"task4") == 0){
 						//task4();
-						printf("Hello 4 \n");
+						//printf("Hello 4 \n");
 						settime();
 						if(uc_flag[tmp_for_Q->pid] == 0){
 							makecontext(&uc[tmp_for_Q->pid], task4, 0);
@@ -1186,17 +1411,25 @@ int main()
 						main_or_task_flag = 0;
 						//printf("out 4\n");
 						closetime();
+						if(run_flag_remove == 1){
 
-						if(tmp_for_Q->status == 0){
+
+						}
+						else{
+							if(tmp_for_Q->status == 0){
 							//printf("status : %d",tmp_for_Q->status);		
 							tmp_for_Q->status = TASK_TERMINATED;
 							tmp_for_LQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
+							//printf("yoyo %d\n",running_flag);
 							remove_from_Q(0);
-						}	
+						}
+
+
+						}
+							
 					}
 					else if(strcmp(tmp_for_LQ->task,"task5") == 0){
-						printf("Hello 5 \n");
+						//printf("Hello 5 \n");
 						settime();
 						if(uc_flag[tmp_for_Q->pid] == 0){
 							makecontext(&uc[tmp_for_Q->pid], task5, 0);
@@ -1209,14 +1442,21 @@ int main()
 						main_or_task_flag = 0;
 						//printf("out 5\n");
 						closetime();
+						if(run_flag_remove == 1){
 
-						if(tmp_for_Q->status == 0){
+
+						}
+						else{
+							if(tmp_for_Q->status == 0){
 							//printf("status : %d",tmp_for_Q->status);		
 							tmp_for_Q->status = TASK_TERMINATED;
 							tmp_for_LQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
+							//printf("yoyo %d\n",running_flag);
 							remove_from_Q(0);
-						}	
+						}
+
+						}
+							
 					}
 					else if(strcmp(tmp_for_LQ->task,"task6") == 0){
 						//printf("Hello 6 \n");
@@ -1232,14 +1472,21 @@ int main()
 						main_or_task_flag = 0;
 						//printf("out 6\n");
 						closetime();
+						if(run_flag_remove == 1){
 
-						if(tmp_for_Q->status == 0){
+
+						}
+						else{
+							if(tmp_for_Q->status == 0){
 							//printf("status : %d",tmp_for_Q->status);		
 							tmp_for_Q->status = TASK_TERMINATED;
 							tmp_for_LQ->status = TASK_TERMINATED;
-							printf("yoyo %d\n",running_flag);
+							//printf("yoyo %d\n",running_flag);
 							remove_from_Q(0);
 						}	
+
+						}
+						
 					}	
 					else{
 						printf("NO!\n");
@@ -1254,7 +1501,7 @@ int main()
 			}
 			else{
 				//LQ is empty
-				printf("WW %d\n",LQ_number);
+				//printf("WW %d\n",LQ_number);
 				HQ_check_flag = 1;
 
 			}
