@@ -12,8 +12,9 @@ void task1(void)   // may terminated
 void task2(void) // run infinite
 {
 	unsigned int a = 0;
-
+	printf("FUCK WHY\n");
 	while (1) {
+		printf("in 2 %d \n", a);
 		a = a + 1;
 	}
 }
@@ -21,12 +22,14 @@ void task2(void) // run infinite
 void task3(void) // wait infinite
 {
 	hw_suspend(32768);
+	//hw_suspend(100);
 	fprintf(stdout, "task3: good morning~\n");
 	fflush(stdout);
 }
 
 void task4(void) // sleep 5s
 {
+	printf("in 4 \n");
 	hw_suspend(500);
 	fprintf(stdout, "task4: good morning~\n");
 	fflush(stdout);
@@ -47,7 +50,9 @@ void task5(void)
 
 void task6(void)
 {
+	printf("IN 6 \n");
 	for (int num = 0; num < 5; ++num) {
+		printf("create task 3\n");
 		hw_task_create("task3");
 	}
 
